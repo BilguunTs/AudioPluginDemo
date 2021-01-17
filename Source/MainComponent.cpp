@@ -6,6 +6,11 @@ MainComponent::MainComponent()
     // Make sure you set the size of the component after
     // you add any child components.
     setSize (800, 600);
+    freqSlider.setSliderStyle(juce::Slider::SliderStyle::LinearHorizontal);
+    freqSlider.setRange(50, 500);
+    freqSlider.addListener(this);
+    addAndMakeVisible(ampSlider);
+    addAndMakeVisible(freqSlider);
 
     // Some platforms require permissions to open input channels so request that here
     if (juce::RuntimePermissions::isRequired (juce::RuntimePermissions::recordAudio)
@@ -27,6 +32,12 @@ MainComponent::~MainComponent()
     shutdownAudio();
 }
 
+void MainComponent::sliderValueChanged(juce::Slider* slider) {
+    if (slider == &freqSlider) {
+        frequency = freqSlider.getValue();
+    }
+}
+
 //==============================================================================
 void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRate)
 {
@@ -34,9 +45,10 @@ void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRat
     phase = 0; 
     wtSize = 1024;
     amplitude = 0.15;
-    increment = frequency * wtSize / sampleRate;
+   
+    currentSampleRate = sampleRate;
     for (int i = 0; i < wtSize; i++) {
-        WaveTable.insert(i, sin(2.0 * M_PI * i / wtSize));
+        waveTable.insert(i, sin(2.0 * M_PI * i / wtSize));
     };
 }
 
@@ -46,11 +58,10 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
     float* const leftSpeaker = bufferToFill.buffer->getWritePointer(0, bufferToFill.startSample);
     float* const rightSpeaker = bufferToFill.buffer->getWritePointer(1, bufferToFill.startSample);
     for (int channel = 0; channel < bufferToFill.buffer->getNumChannels(); channel++) {
-
       for (int sample = 0; sample < bufferToFill.numSamples; sample++) {
-         leftSpeaker[sample] = WaveTable[(int)phase]*amplitude;
-        //rightSpeaker[sample] = WaveTable[(int)phase] * amplitude;
-        phase =fmod( (phase + increment),wtSize);
+        leftSpeaker[sample] = waveTable[(int)phase]*amplitude;
+        rightSpeaker[sample] = waveTable[(int)phase] * amplitude;
+        MainComponent::updateFrequency();
        }
     }
     // Right now we are not producing any data, in which case we need to clear the buffer
@@ -77,6 +88,10 @@ void MainComponent::paint (juce::Graphics& g)
 
 void MainComponent::resized()
 {
+    const int labelSpace = 100;
+    freqSlider.setBounds(labelSpace, 20, getWidth() - 100,20);
+    
+    
     // This is called when the MainContentComponent is resized.
     // If you add any child components, this is where you should
     // update their positions.
